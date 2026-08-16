@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Attack Detection Console</title>
+<script src="/static/chart.umd.min.js"></script>
+<style>
+  :root {
+    color-scheme: light;
+    --plane:        #f9f9f7;
+    --surface:      #fcfcfb;
+    --ink:          #0b0b0b;
+    --ink-2:        #52514e;
+    --ink-muted:    #898781;
+    --grid:         #e1e0d9;
+    --axis:         #c3c2b7;
+    --border:       rgba(11,11,11,0.10);
+    --series-1:     #2a78d6;
+    --series-wash:  rgba(42,120,214,0.12);
+    --good:         #0ca30c;
+    --warning:      #fab219;
+    --critical:     #d03b3b;
+    --critical-bg:  rgba(208,59,59,0.10);
+    --warning-bg:   rgba(250,178,25,0.16);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      color-scheme: dark;
+      --plane:       #0d0d0d;
+      --surface:     #1a1a19;
+      --ink:         #ffffff;
+      --ink-2:       #c3c2b7;
+      --ink-muted:   #898781;
+      --grid:        #2c2c2a;
+      --axis:        #383835;
+      --border:      rgba(255,255,255,0.10);
+      --series-1:    #3987e5;
+      --series-wash: rgba(57,135,229,0.16);
+      --critical-bg: rgba(208,59,59,0.18);
+      --warning-bg:  rgba(250,178,25,0.16);
+    }
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 20px 24px 32px;
+    background: var(--plane);
+    color: var(--ink);
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    font-size: 15px;
+    line-height: 1.45;
+  }
+
+  /* ---------- header ---------- */
+  header {
+    display: flex; align-items: baseline; justify-content: space-between;
+    gap: 16px; flex-wrap: wrap; margin-bottom: 18px;
+  }
+  h1 { font-size: 21px; font-weight: 650; margin: 0; letter-spacing: -0.01em; }
+  .subtitle { color: var(--ink-2); font-size: 13px; margin-top: 3px; }
+  .live {
+    display: inline-flex; align-items: center; gap: 7px;
+    font-size: 13px; font-weight: 550; color: var(--ink-2);
+    border: 1px solid var(--border); border-radius: 999px;
+    padding: 5px 12px; background: var(--surface);
+  }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--good); }
+  .dot.down { background: var(--critical); }
+
+  /* ---------- stat tiles ---------- */
+  .tiles {
+    display: grid; grid-template-columns: repeat(4, 1fr);
+    gap: 14px; margin-bottom: 14px;
+  }
+  .tile {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 10px; padding: 14px 16px 15px;
+  }
+  .tile .label {
+    font-size: 12px; font-weight: 600; letter-spacing: 0.04em;
+    text-transform: uppercase; color: var(--ink-muted);
+  }
+  .tile .value {
+    font-size: 34px; font-weight: 640; line-height: 1.15; margin-top: 4px;
+    letter-spacing: -0.02em;
+  }
+  .tile .unit { font-size: 14px; font-weight: 500; color: var(--ink-muted); margin-left: 4px; }
+  .tile.alert { border-color: var(--critical); background: var(--critical-bg); }
+  .tile.alert .value { color: var(--critical); }
+  .tile .note { font-size: 12px; color: var(--ink-2); margin-top: 3px; min-height: 17px; }
+
+  /* ---------- panels ---------- */
+  .row { display: grid; grid-template-columns: 2.2fr 1fr; gap: 14px; margin-bottom: 14px; }
+  .panel {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 10px; padding: 14px 16px 16px;
+  }
+  .panel h2 {
+    font-size: 14px; font-weight: 620; margin: 0 0 2px;
+  }
+  .panel .hint { font-size: 12px; color: var(--ink-muted); margin: 0 0 12px; }
+  .chart-wrap { position: relative; height: 240px; }
+
+  /* ---------- top IPs ---------- */
+  .ip-row { margin-bottom: 11px; }
+  .ip-head {
+    display: flex; justify-content: space-between; gap: 8px;
+    font-size: 13px; margin-bottom: 4px;
+  }
+  .ip-name { font-variant-numeric: tabular-nums; }
+  .ip-count { color: var(--ink-2); font-variant-numeric: tabular-nums; }
+  .ip-bar { height: 7px; border-radius: 4px; background: var(--grid); overflow: hidden; }
+  .ip-fill { height: 100%; border-radius: 4px; background: var(--series-1); }
+  .ip-row.hot .ip-fill { background: var(--critical); }
+  .ip-row.hot .ip-name::after {
+    content: " FLAGGED"; font-size: 10px; font-weight: 700; color: var(--critical);
+    letter-spacing: 0.05em;
+  }
+
+  /* ---------- table ---------- */
+  table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+  th {
+    text-align: left; font-size: 11px; font-weight: 650; letter-spacing: 0.05em;
+    text-transform: uppercase; color: var(--ink-muted);
+    padding: 0 10px 8px; border-bottom: 1px solid var(--grid); white-space: nowrap;
+  }
+  td { padding: 9px 10px; border-bottom: 1px solid var(--grid); vertical-align: middle; }
+  tbody tr:last-child td { border-bottom: none; }
+  .mono { font-variant-numeric: tabular-nums; }
+  .num { text-align: right; font-variant-numeric: tabular-nums; }
+
+  .badge {
+    display: inline-flex; align-items: center; gap: 5px;
+    font-size: 11px; font-weight: 700; letter-spacing: 0.04em;
+    padding: 3px 8px; border-radius: 5px; white-space: nowrap;
+  }
+  .badge.dos       { background: var(--critical-bg); color: var(--critical); }
+  .badge.brute     { background: var(--warning-bg);  color: #8a5d00; }
+  .badge.clear     { color: var(--ink-muted); font-weight: 500; letter-spacing: 0; }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) .badge.brute { color: var(--warning); }
+  }
+
+  /* ML score meter: a number plus a bar, so the value never rides on colour */
+  .score { display: flex; align-items: center; gap: 8px; }
+  .score-val { font-variant-numeric: tabular-nums; min-width: 38px; }
+  .meter {
+    display: inline-block; width: 62px; height: 6px; border-radius: 3px;
+    background: var(--grid); overflow: hidden; flex: none;
+  }
+  .meter-fill { display: block; height: 100%; background: var(--series-1); border-radius: 3px; }
+  .score.hit .meter-fill { background: var(--critical); }
+  .score.hit .score-val { color: var(--critical); font-weight: 650; }
+  .anomaly-tag {
+    font-size: 10px; font-weight: 700; color: var(--critical); letter-spacing: 0.04em;
+  }
+
+  .empty { text-align: center; color: var(--ink-muted); padding: 30px 0; font-size: 14px; }
+
+  footer {
+    margin-top: 14px; font-size: 12px; color: var(--ink-muted);
+    display: flex; gap: 22px; flex-wrap: wrap;
+    border-top: 1px solid var(--border); padding-top: 12px;
+  }
+  footer b { color: var(--ink-2); font-weight: 600; }
+
+  @media (max-width: 980px) {
+    .tiles { grid-template-columns: repeat(2, 1fr); }
+    .row { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>Cybersecurity Log Analysis &amp; Attack Detection</h1>
+    <div class="subtitle">
+      Hybrid detection &mdash; rule-based thresholds and IsolationForest anomaly
+      scoring, running side by side over 5-second traffic windows.
+    </div>
+  </div>
+  <div class="live"><span class="dot" id="live-dot"></span><span id="live-text">Connecting&hellip;</span></div>
+</header>
+
+<section class="tiles">
+  <div class="tile">
+    <div class="label">Requests / sec</div>
+    <div class="value mono" id="rps">0<span class="unit">/s</span></div>
+    <div class="note" id="rps-note">live ingestion rate</div>
+  </div>
+  <div class="tile" id="attack-tile">
+    <div class="label">Active Attacks</div>
+    <div class="value mono" id="attacks">0</div>
+    <div class="note" id="attacks-note">no attack in progress</div>
+  </div>
+  <div class="tile">
+    <div class="label">Flagged Events</div>
+    <div class="value mono" id="flagged">0</div>
+    <div class="note">detections recorded</div>
+  </div>
+  <div class="tile">
+    <div class="label">Log Events Ingested</div>
+    <div class="value mono" id="total">0</div>
+    <div class="note">total in database</div>
+  </div>
+</section>
+
+<div class="row">
+  <div class="panel">
+    <h2>Request volume</h2>
+    <p class="hint">Requests per second across all sources, last 60 seconds.</p>
+    <div class="chart-wrap"><canvas id="rps-chart"></canvas></div>
+  </div>
+  <div class="panel">
+    <h2>Top source IPs</h2>
+    <p class="hint">Busiest sources in the last 60 seconds.</p>
+    <div id="top-ips"><div class="empty">Waiting for traffic&hellip;</div></div>
+  </div>
+</div>
+
+<div class="panel">
+  <h2>Flagged events</h2>
+  <p class="hint">
+    Every detection carries both verdicts. The rule engine and the ML model are
+    reported separately &mdash; neither overrides the other.
+  </p>
+  <table>
+    <thead>
+      <tr>
+        <th>Time</th>
+        <th>Source IP</th>
+        <th>Endpoint</th>
+        <th>Rule verdict</th>
+        <th>ML anomaly score</th>
+        <th class="num">Requests</th>
+        <th class="num">Fail rate</th>
+      </tr>
+    </thead>
+    <tbody id="events-body">
+      <tr><td colspan="7" class="empty">No flagged events &mdash; traffic looks normal.</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<footer id="config-bar"></footer>
+
+<script>
+const POLL_MS = 2000;
+const css = v => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+
+/* ---------------- chart ---------------- */
+let chart;
+function buildChart() {
+  const ctx = document.getElementById('rps-chart').getContext('2d');
+  chart = new Chart(ctx, {
+    type: 'line',
+    data: { labels: [], datasets: [{
+      label: 'Requests per second',
+      data: [],
+      borderColor: css('--series-1'),
+      backgroundColor: css('--series-wash'),
+      borderWidth: 2,
+      pointRadius: 0,
+      pointHoverRadius: 5,
+      pointHoverBackgroundColor: css('--series-1'),
+      pointHoverBorderColor: css('--surface'),
+      pointHoverBorderWidth: 2,
+      fill: true,
+      tension: 0.25,
+    }]},
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      animation: false,
+      // Crosshair-style hover: reading the line at any x, not just on a point.
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { display: false },   // one series; the panel title names it
+        tooltip: {
+          backgroundColor: css('--surface'),
+          titleColor: css('--ink-2'),
+          bodyColor: css('--ink'),
+          borderColor: css('--axis'),
+          borderWidth: 1,
+          padding: 10,
+          displayColors: false,
+          callbacks: { label: c => c.parsed.y + ' requests in that second' },
+        },
+      },
+      scales: {
+        x: {
+          grid: { display: false },
+          border: { color: css('--axis') },
+          ticks: {
+            color: css('--ink-muted'), maxRotation: 0, autoSkip: true,
+            maxTicksLimit: 8, font: { size: 11 },
+          },
+        },
+        y: {
+          beginAtZero: true,
+          grid: { color: css('--grid'), drawTicks: false },
+          border: { display: false },
+          ticks: { color: css('--ink-muted'), padding: 8, font: { size: 11 }, precision: 0 },
+        },
+      },
+    },
+  });
+}
+
+/* ---------------- rendering ---------------- */
+function setLive(ok) {
+  document.getElementById('live-dot').classList.toggle('down', !ok);
+  document.getElementById('live-text').textContent = ok ? 'Live' : 'Disconnected';
+}
+
+function renderStats(s) {
+  document.getElementById('rps').innerHTML = s.current_rps + '<span class="unit">/s</span>';
+  document.getElementById('flagged').textContent = s.total_events.toLocaleString();
+  document.getElementById('total').textContent = s.total_logs.toLocaleString();
+
+  const tile = document.getElementById('attack-tile');
+  const n = s.active_attacks;
+  tile.classList.toggle('alert', n > 0);
+  document.getElementById('attacks').textContent = n;
+  // Rule-confirmed attacks drive the badge; ML-only findings are reported
+  // beneath it as a weaker claim rather than being counted as attacks.
+  const watch = s.ml_watch
+    ? `${s.ml_watch} ML-only anomal${s.ml_watch === 1 ? 'y' : 'ies'}`
+    : '';
+  document.getElementById('attacks-note').textContent =
+    n > 0
+      ? `${n} rule-confirmed` + (watch ? ` · ${watch}` : '')
+      : (watch || 'no attack in progress');
+
+  chart.data.labels = s.rps.map(p => fmtTime(p.t));
+  chart.data.datasets[0].data = s.rps.map(p => p.count);
+  chart.update('none');
+
+  const box = document.getElementById('top-ips');
+  if (!s.top_ips.length) {
+    box.innerHTML = '<div class="empty">Waiting for traffic&hellip;</div>';
+  } else {
+    const max = Math.max(...s.top_ips.map(t => t.count), 1);
+    box.innerHTML = s.top_ips.map(t => `
+      <div class="ip-row ${flaggedIPs.has(t.ip) ? 'hot' : ''}">
+        <div class="ip-head">
+          <span class="ip-name">${esc(t.ip)}</span>
+          <span class="ip-count">${t.count.toLocaleString()}</span>
+        </div>
+        <div class="ip-bar"><div class="ip-fill" style="width:${(t.count / max * 100).toFixed(1)}%"></div></div>
+      </div>`).join('');
+  }
+}
+
+let flaggedIPs = new Set();
+
+const RULE_LABEL = { dos: 'DoS flood', brute_force: 'Brute force' };
+
+function renderEvents(rows) {
+  flaggedIPs = new Set(rows.filter(r => r.rule_flag).map(r => r.ip));
+  const body = document.getElementById('events-body');
+  if (!rows.length) {
+    body.innerHTML = '<tr><td colspan="7" class="empty">No flagged events &mdash; traffic looks normal.</td></tr>';
+    return;
+  }
+  body.innerHTML = rows.map(r => {
+    // Rule verdict always shows a word, never a bare colour.
+    const rule = r.rule_flag
+      ? `<span class="badge ${r.rule_type === 'dos' ? 'dos' : 'brute'}">&#9650; ${RULE_LABEL[r.rule_type] || r.rule_type}</span>`
+      : '<span class="badge clear">no rule match</span>';
+    const hit = r.ml_flag ? 'hit' : '';
+    const tag = r.ml_flag ? ' <span class="anomaly-tag">ANOMALY</span>' : '';
+    return `<tr>
+      <td class="mono">${esc(fmtTime(r.ts))}</td>
+      <td class="mono">${esc(r.ip)}</td>
+      <td>${esc(r.endpoint || '-')}</td>
+      <td>${rule}</td>
+      <td><div class="score ${hit}">
+            <span class="score-val">${r.ml_score.toFixed(3)}</span>
+            <span class="meter"><span class="meter-fill" style="width:${(r.ml_score * 100).toFixed(0)}%"></span></span>
+            ${tag}
+          </div></td>
+      <td class="num">${r.req_count.toLocaleString()}</td>
+      <td class="num">${(r.fail_rate * 100).toFixed(0)}%</td>
+    </tr>`;
+  }).join('');
+}
+
+function fmtTime(iso) {
+  // Timestamps are stored as naive UTC; render them in the viewer's local time.
+  const d = new Date(iso.endsWith('Z') ? iso : iso + 'Z');
+  return d.toLocaleTimeString([], { hour12: false });
+}
+function esc(s) {
+  return String(s).replace(/[&<>"']/g, c =>
+    ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+/* ---------------- polling ---------------- */
+async function tick() {
+  try {
+    const [s, e] = await Promise.all([
+      fetch('/stats').then(r => r.json()),
+      fetch('/events?limit=50').then(r => r.json()),
+    ]);
+    renderEvents(e);   // first, so Top IPs can mark flagged sources
+    renderStats(s);
+    setLive(true);
+  } catch (err) {
+    setLive(false);
+  }
+}
+
+async function loadConfig() {
+  try {
+    const c = await fetch('/config').then(r => r.json());
+    document.getElementById('config-bar').innerHTML = `
+      <span><b>Window</b> ${c.window_seconds}s</span>
+      <span><b>DoS rule</b> ${esc(c.rules.dos)}</span>
+      <span><b>Brute-force rule</b> ${esc(c.rules.brute_force)}</span>
+      <span><b>ML flag</b> score &gt; ${c.ml.threshold} with &ge; ${c.ml.min_req_count} requests</span>
+      <span><b>Model</b> IsolationForest &mdash; ${c.ml.samples} samples (${esc(c.ml.source)})</span>`;
+  } catch (err) { /* footer is informational only */ }
+}
+
+buildChart();
+tick();
+loadConfig();
+setInterval(tick, POLL_MS);
+setInterval(loadConfig, 15000);
+</script>
+</body>
+</html>
