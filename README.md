@@ -1,134 +1,101 @@
 # Cross-Layer Threat Detection & Attribution Platform
 
-An industry-grade cybersecurity pipeline that ingests log events in real time, scores them with a hybrid Rule + Machine Learning ensemble, calibrates the scores to prevent alert fatigue, and correlates the results into topological Incident Graphs mapped to the MITRE ATT&CK framework.
+![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)
+![FastAPI](https://img.shields.io/badge/FastAPI-005571?style=flat&logo=fastapi)
+![scikit-learn](https://img.shields.io/badge/scikit--learn-%23F7931E.svg?style=flat&logo=scikit-learn&logoColor=white)
 
-Everything runs locally. No Docker, no cloud services, no database server, no build step.
+An industry-grade cybersecurity platform that ingests security telemetry in real-time, scores events using a hybrid detection ensemble, mathematically calibrates scores to prevent alert fatigue, and correlates disparate alerts into unified Kill Chain incidents.
 
-```text
-log generators  ->  POST /logs  ->  SQLite  ->  feature engine (every 5s)
-                                                     |
-                                          +----------+----------+
-                                          |                     |
-                                     rule engine          IsolationForest
-                                   (thresholds)          (anomaly score 0-1)
-                                          |                     |
-                                          +----------+----------+
-                                                     |
-                                  correlation engine (Entity Graph)
-                                                     |
-                                   incident records -> live dashboard
-```
+## Table of Contents
+- [Architecture Overview](#architecture-overview)
+- [Core Features](#core-features)
+- [Quickstart](#quickstart)
+- [Interactive Dashboard](#interactive-dashboard)
+- [Offline Evaluation](#offline-evaluation)
+- [API Reference](#api-reference)
 
 ---
 
-## 1. One-time setup
+## Architecture Overview
 
-**Prerequisite:** Python 3.10 or newer (developed and tested on 3.12). Nothing else — no Node.js, no npm, no database server, no Docker.
+The system processes telemetry through a four-stage pipeline designed for production constraints:
+
+1. **Ingestion & Feature Extraction:** High-throughput streaming ingestion with tumbling 5-second window aggregations (e.g., failure rates, volume, geographic novelty).
+2. **Hybrid Detection Ensemble:** 
+   - **Deterministic:** Sigma-style rules for high-precision catching of known signatures.
+   - **Unsupervised ML:** `IsolationForest` continuously learns from baseline traffic to catch zero-day behaviors.
+3. **Calibration & Abstention:** Employs Platt Scaling to convert arbitrary anomaly scores into true probabilities. Implements an **Abstention Gate** that suppresses low-confidence machine learning alerts to drastically reduce False Positive rates.
+4. **Correlation & Attribution:** Builds an in-memory topological entity graph to group related anomalies, identify "Patient Zero", calculate the blast radius, and map sequences to the MITRE ATT&CK framework.
+
+---
+
+## Core Features
+
+- **Real-Time Stream Processing:** Ingests and processes distributed logs asynchronously without blocking.
+- **Mathematical Calibration:** Solves the base-rate fallacy inherent in security tooling.
+- **Topological Entity Graph:** Replaces alert dumps with contextual, causal incident narratives.
+- **Self-Healing ML:** The model automatically bootstraps on startup and retrains itself exclusively on clean windows to prevent baseline poisoning.
+- **Zero-Dependency Architecture:** Entirely self-contained. Runs locally with built-in SQLite (WAL mode) and vendored frontend assets. No external database or Docker required.
+
+---
+
+## Quickstart
+
+### Installation
+
+Clone the repository and install the Python dependencies.
 
 ```bash
-cd D:\CSE\major_project
+git clone https://github.com/abhishekbidare03/Causeway.git
+cd Causeway
 pip install -r requirements.txt
 ```
 
-That's the entire install. The SQLite database and the trained model file are created automatically on first run, inside `data/`.
+### Running the Platform
 
-### What gets installed, and what doesn't
-
-`requirements.txt` installs seven direct packages: **fastapi**, **uvicorn**, **pydantic**, **sqlalchemy**, **scikit-learn**, **numpy**, **joblib** and **requests**.
-
-Two things people expect to install here but **do not need to**:
-- **Chart.js** — A copy already ships with the project at `app/static/chart.umd.min.js`. The dashboard works with **no internet connection**.
-- **SQLite** — Built into Python's standard library. There is no database server to install, configure, or start.
-
----
-
-## 2. Running the one-click demo
-
-You only need **one terminal** to run the entire system.
+Start the FastAPI application server:
 
 ```bash
-uvicorn app.main:app --reload
+uvicorn app.main:app --host 127.0.0.1 --port 8000
 ```
-
-Wait for `Application startup complete`. This one terminal runs the ingestion API, the background detection loops, the correlation engine, and the dashboard.
-
-Open **http://127.0.0.1:8000** in a browser.
-
-### The Simulation Control Panel
-You no longer need to type terminal commands to generate attacks. At the top of the dashboard is the **Simulation Controls** bar:
-
-1. Click **Normal Traffic**. You will see the requests/sec chart start moving with benign background noise.
-2. Click **Multi-Stage Attack**. The system will simulate a 32-second lateral movement intrusion.
-3. Watch the **Active Incidents & Entity Graph** panel. The Correlation Engine will group the raw alerts into a single Kill Chain incident, identifying "Patient Zero" and calculating the Blast Radius.
-4. Click **Reset Demo** anytime to wipe the database and start fresh.
+*Note: The SQLite database (`logs.db`) and ML model (`model.pkl`) are initialized automatically inside `data/` on the first run.*
 
 ---
 
-## 3. Core Enterprise Features
+## Interactive Dashboard
 
-This project was built to solve three specific problems in security operations centers (SOCs): *Visibility Fragmentation, Alert Fatigue, and Absent Attribution.*
+Navigate to **http://127.0.0.1:8000** to access the Threat Attribution Console.
 
-### A. Hybrid Detection Engine
-Running a single detection model always fails in production. We run two engines side-by-side on a 5-second tumbling window:
-- **Sigma Rules (`app/detection/rules.py`):** Deterministic, explainable, and instant. Catches known shapes like DoS floods and basic brute force.
-- **Unsupervised ML (`app/detection/ml_model.py`):** An `IsolationForest` model that learns from traffic to catch unusual behavior no rule describes. It automatically bootstraps on startup and retrains itself every 60 seconds on clean traffic.
+The dashboard includes a built-in **Simulation Control Panel** for presentation and testing. You can trigger live traffic generation directly from the UI:
+- **Normal Traffic:** Simulates benign background telemetry.
+- **Multi-Stage Attack:** Executes a simulated lateral movement intrusion, demonstrating the correlation engine's ability to group events into a unified Kill Chain.
+- **DoS Flood / Brute Force:** Tests individual detection rules.
+- **Abstention Probe:** Tests the ML calibration and abstention gate mechanics.
 
-### B. Platt Scaling & The Abstention Gate
-Anomaly models output arbitrary scores that mean nothing to an analyst. We use mathematical calibration (**Platt Scaling**, via a logistic sigmoid function) to convert the Isolation Forest's raw output into a true anomaly probability (0% to 100%).
+---
 
-We raised the hard alert threshold to **0.95**. If traffic falls between 60% and 95%, it hits the **Abstention Gate**. The model actively logs the suspicious behavior for reference but mathematically refuses to trigger a false-positive alert, saving analyst time. You can trigger this yourself by clicking the **Abstention Probe** button.
+## Offline Evaluation
 
-### C. Correlation & Attribution
-Instead of dumping 50 raw alerts on an analyst's desk, the correlation engine (`app/detection/correlation.py`) groups related anomalies into unified **Incidents**. 
-- It builds an in-memory directed graph of the attack.
-- It identifies **Patient Zero** (the earliest node with no anomalous inbound edge).
-- It calculates the **Blast Radius** (forward reachability from patient zero).
-- It maps the sequence to the **MITRE ATT&CK** kill chain.
+To prove the efficacy of the detection pipeline, the project includes an offline evaluation harness. It measures True Precision, Recall, and False Positive Rates against a labeled corpus.
 
-### D. Offline Evaluation Harness
-"Accuracy" is a meaningless metric in cybersecurity where 99.9% of traffic is benign. To prove the engine works, we built an offline evaluation harness.
-Run the following in a terminal:
 ```bash
 python evaluate.py
 ```
-This script bypasses the web server, loads an offline labeled corpus (`data/corpus.jsonl`), runs the exact production detection loop, and calculates true **Precision and Recall** for each attack class.
+This script bypasses the web interface, processes the offline corpus through the exact production detection loop, and outputs a statistical evaluation report.
 
 ---
 
-## 4. API Endpoints
+## API Reference
 
-| Endpoint | Purpose |
-|---|---|
-| `POST /logs` | Ingest one normalized event: `timestamp, ip, user, endpoint, status, bytes, layer` |
-| `GET /events` | Recent raw detections, newest first, with both rule and ML verdicts |
-| `GET /incidents` | Correlated incident objects, including kill chain and blast radius |
-| `GET /stats` | Requests/sec series, top IPs, active attacks, totals |
-| `POST /simulate/{name}` | Start a background attack simulation directly from the API |
-| `POST /reset` | Safely wipe all database tables for a clean demo restart |
-| `GET /docs` | Auto-generated Swagger UI |
+The platform exposes a full REST API for headless operation and SIEM integration.
 
----
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `POST` | `/logs` | Ingest normalized event: `timestamp, ip, user, endpoint, status, bytes, layer` |
+| `GET`  | `/events` | Fetch raw anomalous events with both Rule and ML verdicts |
+| `GET`  | `/incidents` | Fetch correlated incident objects (Kill Chain, Blast Radius, Patient Zero) |
+| `GET`  | `/stats` | Fetch real-time ingestion rates and global statistics |
+| `POST` | `/simulate/{name}` | Trigger a background attack simulation |
+| `POST` | `/reset` | Safely wipe the datastore |
 
-## 5. Project Structure
-
-```text
-app/
-  main.py              FastAPI app, detection loops, dashboard API, simulation control
-  config.py            Every threshold and tunable, in one place
-  db.py                SQLite engine (WAL mode) + sessions
-  models.py            ORM: logs / features / events / incidents
-  schemas.py           Request & response validation
-  features.py          5-second windowed feature extraction
-  detection/
-    rules.py           Threshold rules
-    ml_model.py        IsolationForest: bootstrap, calibrate, score, retrain
-    correlation.py     Entity graph, MITRE mapping, and incident grouping
-  static/
-    index.html         The dashboard (single page, zero build step)
-logs/
-  generator.py         Normal traffic
-  lateral_movement.py  Multi-stage correlation test
-  abstain_probe.py     Tests the ML Abstention Gate
-evaluate.py            Offline evaluation harness for precision/recall
-data/                  Created at runtime: logs.db, model.pkl, corpus.jsonl
-```
+*Detailed schema documentation is available via the Swagger UI at `http://127.0.0.1:8000/docs` while the server is running.*
