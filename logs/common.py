@@ -15,16 +15,17 @@ def now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
-def make_event(ip, endpoint, status, user=None, size=None, layer="app"):
+def make_event(ip, endpoint, status, user=None, size=None, layer="app", ground_truth="benign", timestamp=None):
     """Build a normalized log event payload."""
     return {
-        "timestamp": now_iso(),
+        "timestamp": timestamp or now_iso(),
         "ip": ip,
         "user": user,
         "endpoint": endpoint,
         "status": status,
         "bytes": size if size is not None else 0,
         "layer": layer,
+        "ground_truth": ground_truth,
     }
 
 

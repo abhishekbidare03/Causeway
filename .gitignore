@@ -1,0 +1,28 @@
+# ---- runtime data (regenerated automatically on startup) ----
+# The SQLite database, its transient write-ahead-log sidecars, and the trained
+# model. app/config.py recreates data/ on import, and the detection loop
+# rebuilds the model, so a fresh clone needs none of this.
+data/
+
+# ---- Python ----
+__pycache__/
+*.py[cod]
+*$py.class
+
+# ---- virtual environments ----
+.venv/
+venv/
+env/
+ENV/
+
+# ---- editors / OS ----
+.vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
+desktop.ini
+logs.md
+Threat_Attribution_Platform_System_Design.pdf
+Recording 2026-08-16 224138.mp4
+EXPLAIN.md

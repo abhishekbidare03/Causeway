@@ -279,13 +279,104 @@
     padding: 1px 5px; border-radius: 4px;
   }
 
-  @media (max-width: 1080px) {
-    .row { grid-template-columns: 1fr; }
-  }
   @media (max-width: 820px) {
     body { padding: 20px 18px 32px; }
     .tiles { grid-template-columns: repeat(2, 1fr); }
   }
+
+  /* ---------------- incidents ---------------- */
+  .incident-feed { display: flex; flex-direction: column; gap: 16px; margin-bottom: 24px; }
+  .incident-card {
+    background: var(--card-sunken); border: 1px solid var(--critical-line);
+    border-radius: var(--radius); padding: 16px 20px;
+    box-shadow: 0 2px 8px rgba(208, 59, 59, 0.08);
+  }
+  .incident-header {
+    display: flex; justify-content: space-between; align-items: flex-start;
+    margin-bottom: 16px;
+  }
+  .incident-title {
+    font-size: 15px; font-weight: 600; color: var(--critical-ink);
+    letter-spacing: -0.01em; margin: 0 0 4px 0;
+  }
+  .incident-meta { font-size: 12.5px; color: var(--ink-3); }
+  
+  /* The Entity Graph (Flexbox based) */
+  .entity-graph {
+    display: flex; align-items: center; justify-content: space-between;
+    background: var(--card); border: 1px solid var(--line-strong);
+    border-radius: var(--radius-sm); padding: 16px 24px; margin-bottom: 12px;
+  }
+  .graph-node {
+    display: flex; flex-direction: column; align-items: center; text-align: center;
+    gap: 6px; z-index: 2; width: 120px;
+  }
+  .node-icon {
+    width: 40px; height: 40px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    background: var(--page); border: 2px solid var(--ink-2);
+    font-size: 18px; box-shadow: var(--shadow-sm);
+  }
+  .graph-node.attacker .node-icon { border-color: var(--critical); color: var(--critical); background: var(--critical-bg); }
+  .graph-node.target .node-icon { border-color: var(--warning-ink); color: var(--warning-ink); background: var(--warning-bg); }
+  .node-label { font-size: 11.5px; font-weight: 600; color: var(--ink); text-transform: uppercase; letter-spacing: 0.05em; }
+  .node-value { font-size: 12.5px; color: var(--ink-2); font-variant-numeric: tabular-nums; }
+  
+  .graph-edge {
+    flex-grow: 1; height: 2px; background: var(--line-strong);
+    position: relative; margin: -20px 10px 0; z-index: 1;
+  }
+  .graph-edge::after {
+    content: ''; position: absolute; right: 0; top: -4px;
+    border-top: 5px solid transparent; border-bottom: 5px solid transparent;
+    border-left: 8px solid var(--line-strong);
+  }
+  .edge-label {
+    position: absolute; top: -20px; left: 50%; transform: translateX(-50%);
+    font-size: 10.5px; font-weight: 600; color: var(--ink-3);
+    background: var(--card); padding: 0 8px; white-space: nowrap;
+    text-transform: uppercase; letter-spacing: 0.05em;
+  }
+  .kill-chain-tags {
+    display: flex; gap: 6px; flex-wrap: wrap; margin-top: 12px;
+  }
+  .kc-tag {
+    font-size: 11px; font-weight: 600; padding: 3px 8px;
+    background: var(--ink-2); color: white; border-radius: 4px;
+    letter-spacing: 0.02em;
+  }
+
+  /* ---------------- simulation controls ---------------- */
+  .sim-bar {
+    display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+    margin-bottom: 16px; padding: 14px 18px;
+    background: var(--card); border: 1px solid var(--hairline);
+    border-radius: var(--radius); box-shadow: var(--shadow-sm);
+  }
+  .sim-bar-label {
+    font-size: 11px; font-weight: 700; letter-spacing: 0.06em;
+    text-transform: uppercase; color: var(--ink-3); margin-right: 4px;
+  }
+  .sim-btn {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-size: 12.5px; font-weight: 600; letter-spacing: -0.005em;
+    padding: 7px 14px; border-radius: 8px; border: 1px solid var(--line-strong);
+    background: var(--card); color: var(--ink-2); cursor: pointer;
+    transition: all 0.15s ease; white-space: nowrap;
+  }
+  .sim-btn:hover { background: var(--page); border-color: var(--ink-3); color: var(--ink); box-shadow: var(--shadow-sm); }
+  .sim-btn:active { transform: scale(0.97); }
+  .sim-btn .sim-icon { font-size: 14px; line-height: 1; }
+  .sim-btn.running {
+    background: var(--critical-bg); border-color: var(--critical-line);
+    color: var(--critical-ink);
+  }
+  .sim-btn.running:hover { background: #fbe5e3; }
+  .sim-btn.attack { border-color: var(--critical-line); }
+  .sim-btn.attack:hover { background: var(--critical-bg); color: var(--critical-ink); }
+  .sim-btn.reset { border-color: var(--line-strong); }
+  .sim-btn.reset:hover { background: var(--ink); color: white; border-color: var(--ink); }
+  .sim-sep { width: 1px; height: 22px; background: var(--line-strong); margin: 0 4px; }
 </style>
 </head>
 <body>
@@ -303,6 +394,30 @@
       <span class="dot" id="live-dot"></span><span id="live-text">Connecting&hellip;</span>
     </div>
   </header>
+
+  <div class="sim-bar" id="sim-bar">
+    <span class="sim-bar-label">Simulation Controls</span>
+    <span class="sim-sep"></span>
+    <button class="sim-btn" data-sim="normal-traffic" onclick="toggleSim(this)">
+      <span class="sim-icon">📡</span> Normal Traffic
+    </button>
+    <button class="sim-btn attack" data-sim="lateral-movement" onclick="toggleSim(this)">
+      <span class="sim-icon">⚡</span> Multi-Stage Attack
+    </button>
+    <button class="sim-btn attack" data-sim="dos-attack" onclick="toggleSim(this)">
+      <span class="sim-icon">🌊</span> DoS Flood
+    </button>
+    <button class="sim-btn attack" data-sim="brute-force" onclick="toggleSim(this)">
+      <span class="sim-icon">🔓</span> Brute Force
+    </button>
+    <button class="sim-btn" data-sim="abstain-probe" onclick="toggleSim(this)">
+      <span class="sim-icon">🔬</span> Abstention Probe
+    </button>
+    <span class="sim-sep"></span>
+    <button class="sim-btn reset" onclick="resetDemo()">
+      <span class="sim-icon">🧹</span> Reset Demo
+    </button>
+  </div>
 
   <section class="tiles">
     <div class="card tile">
@@ -344,15 +459,27 @@
     </div>
   </div>
 
+  <div class="card panel" style="margin-bottom: 16px;">
+    <div class="panel-head">
+      <h2>Active Incidents &amp; Entity Graph</h2>
+      <p class="hint">
+        Correlated attack timelines. The engine groups raw alerts by Entity (Patient Zero) and Temporal Proximity to reconstruct the full kill chain.
+      </p>
+    </div>
+    <div id="incidents-feed" class="incident-feed">
+      <div class="empty">No incidents detected. System is secure.</div>
+    </div>
+  </div>
+
   <div class="card panel">
     <div class="panel-head">
-      <h2>Flagged events</h2>
+      <h2>Raw Alerts (Diagnostic)</h2>
       <p class="hint">
         Every detection carries both verdicts. The rule engine and the ML model
         are reported separately &mdash; neither overrides the other.
       </p>
     </div>
-    <div class="table-scroll">
+    <div class="table-scroll" style="max-height: 300px;">
       <table>
         <thead>
           <tr>
@@ -377,7 +504,8 @@
 </div>
 
 <script>
-const POLL_MS = 2000;
+const POLL_MS = 1000;      // stats + chart: one point per second, so one poll per second
+const EVENTS_EVERY = 2;    // detections change every 5s; poll them every 2nd tick
 
 /* ---------------- chart ---------------- */
 let chart;
@@ -410,6 +538,12 @@ function buildChart() {
       responsive: true,
       maintainAspectRatio: false,
       animation: false,
+      // Data arrives pre-sorted and evenly spaced, so Chart.js can skip its
+      // re-sorting pass on every update. (Not `parsing: false` -- that needs
+      // {x,y} objects, and this dataset is a plain number array.)
+      normalized: true,
+      // Coalesce resize work instead of re-laying out on every resize event.
+      resizeDelay: 120,
       // Crosshair-style hover: read the line at any x, not only on a point.
       interaction: { mode: 'index', intersect: false },
       layout: { padding: { top: 4, right: 4 } },
@@ -506,41 +640,151 @@ function renderStats(s) {
   }
 }
 
+const MAX_ROWS = 50;
+let _renderedIds = new Set();
+
+function eventRowHtml(r) {
+  // The rule verdict always shows a word, never a bare colour.
+  const rule = r.rule_flag
+    ? `<span class="badge ${r.rule_type === 'dos' ? 'dos' : 'brute'}">
+         <span class="tri">&#9650;</span>${RULE_LABEL[r.rule_type] || r.rule_type}</span>`
+    : '<span class="badge clear">no rule match</span>';
+  const tag = r.ml_flag ? '<span class="anomaly-tag">ANOMALY</span>' : '';
+  return `<tr data-id="${r.id}">
+    <td class="mono">${esc(fmtTime(r.ts))}</td>
+    <td class="mono ip">${esc(r.ip)}</td>
+    <td class="endpoint">${esc(r.endpoint || '-')}</td>
+    <td>${rule}</td>
+    <td><div class="score ${r.ml_flag ? 'hit' : ''}">
+          <span class="score-val">${r.ml_score.toFixed(3)}</span>
+          <span class="meter"><span class="meter-fill" style="width:${(r.ml_score * 100).toFixed(0)}%"></span></span>
+          ${tag}
+        </div></td>
+    <td class="num">${r.req_count.toLocaleString()}</td>
+    <td class="num">${(r.fail_rate * 100).toFixed(0)}%</td>
+  </tr>`;
+}
+
+// Detections appear once per 5-second window but we poll more often, so most
+// polls return data that is already on screen. Rebuilding all 50 rows of
+// innerHTML regardless threw away scroll position, killed :hover mid-pointer
+// and dropped selected text -- which is what actually read as "laggy".
+// Instead: touch the DOM only for rows that are genuinely new, prepend them,
+// and trim the tail.
 function renderEvents(rows) {
   flaggedIPs = new Set(rows.filter(r => r.rule_flag).map(r => r.ip));
   const body = document.getElementById('events-body');
+
   if (!rows.length) {
-    body.innerHTML =
-      '<tr><td colspan="7" class="empty">No flagged events &mdash; traffic looks normal.</td></tr>';
+    if (_renderedIds.size || !body.querySelector('.empty')) {
+      body.innerHTML =
+        '<tr><td colspan="7" class="empty">No flagged events &mdash; traffic looks normal.</td></tr>';
+      _renderedIds.clear();
+    }
     return;
   }
-  body.innerHTML = rows.map(r => {
-    // The rule verdict always shows a word, never a bare colour.
-    const rule = r.rule_flag
-      ? `<span class="badge ${r.rule_type === 'dos' ? 'dos' : 'brute'}">
-           <span class="tri">&#9650;</span>${RULE_LABEL[r.rule_type] || r.rule_type}</span>`
-      : '<span class="badge clear">no rule match</span>';
-    const tag = r.ml_flag ? '<span class="anomaly-tag">ANOMALY</span>' : '';
-    return `<tr>
-      <td class="mono">${esc(fmtTime(r.ts))}</td>
-      <td class="mono ip">${esc(r.ip)}</td>
-      <td class="endpoint">${esc(r.endpoint || '-')}</td>
-      <td>${rule}</td>
-      <td><div class="score ${r.ml_flag ? 'hit' : ''}">
-            <span class="score-val">${r.ml_score.toFixed(3)}</span>
-            <span class="meter"><span class="meter-fill" style="width:${(r.ml_score * 100).toFixed(0)}%"></span></span>
-            ${tag}
-          </div></td>
-      <td class="num">${r.req_count.toLocaleString()}</td>
-      <td class="num">${(r.fail_rate * 100).toFixed(0)}%</td>
-    </tr>`;
+
+  const fresh = rows.filter(r => !_renderedIds.has(r.id));
+  if (!fresh.length) return;                 // nothing new -- leave the DOM alone
+
+  if (!_renderedIds.size) body.innerHTML = '';   // clear the empty-state row
+
+  // rows arrive newest-first, so the block goes straight on top in order.
+  const scroller = document.querySelector('.table-scroll');
+  const before = scroller ? scroller.scrollHeight : 0;
+  body.insertAdjacentHTML('afterbegin', fresh.map(eventRowHtml).join(''));
+  fresh.forEach(r => _renderedIds.add(r.id));
+
+  // If the user has scrolled down to read something, keep that row under their
+  // eyes rather than letting the new rows shove it out of view.
+  if (scroller && scroller.scrollTop > 0) {
+    scroller.scrollTop += scroller.scrollHeight - before;
+  }
+
+  while (body.rows.length > MAX_ROWS) {
+    const last = body.rows[body.rows.length - 1];
+    _renderedIds.delete(Number(last.dataset.id));
+    last.remove();
+  }
+}
+
+let _renderedIncidentIds = new Set();
+let _lastIncidentState = "";
+
+function renderIncidents(incidents) {
+  const feed = document.getElementById('incidents-feed');
+  
+  if (!incidents.length) {
+    feed.innerHTML = '<div class="empty">No incidents detected. System is secure.</div>';
+    _renderedIncidentIds.clear();
+    _lastIncidentState = "";
+    return;
+  }
+
+  // Simple state check to avoid expensive DOM rewrites if nothing changed
+  const currentState = JSON.stringify(incidents.map(i => ({id: i.id, events: i.events.length, chain: i.kill_chain})));
+  if (currentState === _lastIncidentState) return;
+  _lastIncidentState = currentState;
+
+  feed.innerHTML = incidents.map(inc => {
+    const duration = Math.max(0, (new Date(inc.end_ts) - new Date(inc.start_ts)) / 1000);
+    const durationStr = duration > 0 ? ` over ${duration}s` : '';
+    const eventCount = inc.events.length;
+    
+    return `
+    <div class="incident-card" data-id="${inc.id}">
+      <div class="incident-header">
+        <div>
+          <h3 class="incident-title">Incident #${inc.id} - ${inc.kill_chain.length ? inc.kill_chain[inc.kill_chain.length-1] : 'Anomaly Detected'}</h3>
+          <div class="incident-meta">${fmtTime(inc.start_ts)} &mdash; ${eventCount} correlated alert${eventCount > 1 ? 's' : ''}${durationStr}</div>
+        </div>
+        <span class="badge dos"><span class="tri">&#9650;</span>CRITICAL</span>
+      </div>
+      
+      <div class="entity-graph">
+        <div class="graph-node attacker">
+          <div class="node-icon">&#128123;</div>
+          <div class="node-label">Patient Zero</div>
+          <div class="node-value mono">${esc(inc.patient_zero)}</div>
+        </div>
+        
+        <div class="graph-edge">
+          <div class="edge-label">Lateral Movement</div>
+        </div>
+        
+        <div class="graph-node target">
+          <div class="node-icon">&#127919;</div>
+          <div class="node-label">Blast Radius</div>
+          <div class="node-value">${inc.blast_radius} Endpoint${inc.blast_radius !== 1 ? 's' : ''}</div>
+        </div>
+      </div>
+      
+      <div class="kill-chain-tags">
+        <span style="font-size: 11px; color: var(--ink-3); font-weight: 600; margin-right: 4px; padding-top: 2px;">KILL CHAIN:</span>
+        ${inc.kill_chain.map(kc => `<span class="kc-tag">${esc(kc)}</span>`).join(' <span style="color: var(--line-strong); padding-top:2px;">&rarr;</span> ')}
+      </div>
+    </div>`;
   }).join('');
 }
 
+// Timestamps are stored as naive UTC; render them in the viewer's local time.
+// toLocaleTimeString goes through Intl and costs ~0.07 ms per call -- with 60
+// chart labels plus 50 table rows on every poll that alone was ~7 ms of the
+// frame. Formatting by hand and memoising the result makes repeats free, and
+// the same second is asked for many times over.
+const _timeCache = new Map();
 function fmtTime(iso) {
-  // Timestamps are stored as naive UTC; render them in the viewer's local time.
+  let out = _timeCache.get(iso);
+  if (out !== undefined) return out;
   const d = new Date(iso.endsWith('Z') ? iso : iso + 'Z');
-  return d.toLocaleTimeString([], { hour12: false });
+  out = String(d.getHours()).padStart(2, '0') + ':' +
+        String(d.getMinutes()).padStart(2, '0') + ':' +
+        String(d.getSeconds()).padStart(2, '0');
+  // The window slides, so old keys stop being asked for -- drop them in bulk
+  // rather than letting the map grow for the life of the page.
+  if (_timeCache.size > 400) _timeCache.clear();
+  _timeCache.set(iso, out);
+  return out;
 }
 function esc(s) {
   return String(s).replace(/[&<>"']/g, c =>
@@ -548,19 +792,43 @@ function esc(s) {
 }
 
 /* ---------------- polling ---------------- */
+// The chart plots one point per second, so polling it every second advances the
+// line one step at a time. Polling every two seconds made it jump two points
+// per redraw, which is what made the graph look like it was stuttering.
+// Detections only change once per 5s window, so events poll at half the rate.
+let _busy = false;
+let _sinceEvents = 0;
+
 async function tick() {
+  // A poll that overruns its interval used to stack up behind the next one,
+  // so a single slow response turned into a queue of them.
+  if (_busy) return;
+  // Browsers throttle background timers anyway; skipping the work outright
+  // stops a hidden tab burning CPU and lets it resume cleanly.
+  if (document.hidden) return;
+  _busy = true;
   try {
-    const [s, e] = await Promise.all([
+    const wantEvents = _sinceEvents <= 0;
+    const [s, e, inc] = await Promise.all([
       fetch('/stats').then(r => r.json()),
-      fetch('/events?limit=50').then(r => r.json()),
+      wantEvents ? fetch('/events?limit=50').then(r => r.json()) : null,
+      wantEvents ? fetch('/incidents?limit=10').then(r => r.json()) : null,
     ]);
-    renderEvents(e);   // first, so Top IPs can mark flagged sources
+    if (e) { renderEvents(e); }
+    if (inc) { renderIncidents(inc); }
+    if (e || inc) { _sinceEvents = EVENTS_EVERY; }
+    _sinceEvents--;
     renderStats(s);
     setLive(true);
   } catch (err) {
     setLive(false);
+  } finally {
+    _busy = false;
   }
 }
+
+// Catch up immediately when the tab comes back, instead of waiting a full tick.
+document.addEventListener('visibilitychange', () => { if (!document.hidden) tick(); });
 
 async function loadConfig() {
   try {
@@ -581,6 +849,63 @@ tick();
 loadConfig();
 setInterval(tick, POLL_MS);
 setInterval(loadConfig, 15000);
+
+/* ---------------- simulation controls ---------------- */
+async function toggleSim(btn) {
+  const name = btn.dataset.sim;
+  const isRunning = btn.classList.contains('running');
+
+  try {
+    if (isRunning) {
+      await fetch(`/simulate/${name}/stop`, { method: 'POST' });
+    } else {
+      await fetch(`/simulate/${name}`, { method: 'POST' });
+    }
+    // Immediately refresh status
+    await refreshSimStatus();
+  } catch (err) {
+    console.error('Simulation toggle failed:', err);
+  }
+}
+
+async function resetDemo() {
+  if (!confirm('Reset the database? This clears all logs, events, and incidents for a fresh demo.')) return;
+  try {
+    await fetch('/reset', { method: 'POST' });
+    // Clear the frontend state
+    _renderedIds.clear();
+    _renderedIncidentIds.clear();
+    _lastIncidentState = "";
+    document.getElementById('events-body').innerHTML =
+      '<tr><td colspan="7" class="empty">No flagged events &mdash; traffic looks normal.</td></tr>';
+    document.getElementById('incidents-feed').innerHTML =
+      '<div class="empty">No incidents detected. System is secure.</div>';
+    await refreshSimStatus();
+  } catch (err) {
+    console.error('Reset failed:', err);
+  }
+}
+
+async function refreshSimStatus() {
+  try {
+    const status = await fetch('/simulate/status').then(r => r.json());
+    document.querySelectorAll('.sim-btn[data-sim]').forEach(btn => {
+      const name = btn.dataset.sim;
+      if (status[name]) {
+        const isRunning = status[name].status === 'running';
+        btn.classList.toggle('running', isRunning);
+        // Update the button text to show state
+        const icon = btn.querySelector('.sim-icon').textContent;
+        const label = status[name].label;
+        btn.innerHTML = `<span class="sim-icon">${icon}</span> ${isRunning ? '■ Stop' : label}`;
+      }
+    });
+  } catch (err) { /* non-critical */ }
+}
+
+// Poll simulation status every 2 seconds
+refreshSimStatus();
+setInterval(refreshSimStatus, 2000);
 </script>
 </body>
 </html>

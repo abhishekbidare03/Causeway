@@ -16,8 +16,9 @@ from sqlalchemy import (
     Index,
     Integer,
     String,
+    Text,
 )
-from sqlalchemy.orm import declarative_base
+from sqlalchemy.orm import declarative_base, relationship
 
 Base = declarative_base()
 
@@ -68,6 +69,22 @@ class Feature(Base):
     created_at = Column(DateTime, nullable=False, default=_utcnow)
 
 
+class Incident(Base):
+    """An incident grouping related events together."""
+
+    __tablename__ = "incidents"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    start_ts = Column(DateTime, nullable=False, index=True)
+    end_ts = Column(DateTime, nullable=False)
+    patient_zero = Column(String(45), nullable=False)
+    blast_radius = Column(Integer, nullable=False, default=0)
+    kill_chain = Column(Text, nullable=False, default="[]")  # JSON string list of stages
+
+    # Relationship to events
+    events = relationship("Event", back_populates="incident")
+
+
 class Event(Base):
     """A detection.
 
@@ -94,4 +111,8 @@ class Event(Base):
     fail_rate = Column(Float, nullable=False, default=0.0)
 
     feature_id = Column(Integer, ForeignKey("features.id"), nullable=True)
+    incident_id = Column(Integer, ForeignKey("incidents.id"), nullable=True, index=True)
+    
+    incident = relationship("Incident", back_populates="events")
+    
     created_at = Column(DateTime, nullable=False, default=_utcnow)

@@ -30,8 +30,11 @@ BRUTE_FAIL_RATE = 0.7
 BRUTE_MIN_REQ = 10
 
 # --- ML detection --------------------------------------------------------
-# Anomaly scores are normalised to 0-1; anything above this is ML-flagged.
-ML_SCORE_THRESHOLD = 0.7
+# Anomaly probabilities are mapped to [0, 1].
+# Above 0.95 triggers a hard alert.
+ML_SCORE_THRESHOLD = 0.95
+# Above 0.60 but below 0.95 enters the Abstention Gate (logged, but not alerted).
+ML_ABSTAIN_THRESHOLD = 0.60
 
 # Minimum requests in a window before the ML model is allowed to raise a flag.
 # One or two requests carry no statistical evidence -- a lone 404 gives

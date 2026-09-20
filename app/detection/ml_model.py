@@ -254,12 +254,13 @@ class MLDetector:
 
     # --- inference -------------------------------------------------------
     def score(self, vectors: Sequence[Sequence[float]]) -> List[float]:
-        """Map feature vectors to anomaly scores in [0, 1] (higher = stranger).
+        """Map feature vectors to true anomaly probabilities in [0, 1].
 
-        Piecewise-linear against the training distribution:
-            median normal          -> 0.0
-            model outlier boundary -> ML_SCORE_THRESHOLD
-            one span beyond that   -> 1.0
+        Uses Platt scaling (logistic sigmoid calibration) to convert raw
+        IsolationForest decision scores into calibrated probabilities:
+            median normal          -> ~0.6% probability
+            model outlier boundary -> 50.0% probability
+            one span beyond that   -> ~99.3% probability
         """
         if not vectors:
             return []
@@ -273,13 +274,17 @@ class MLDetector:
 
         raw = -pipeline.score_samples(np.asarray(vectors, dtype=float))
         span = s_boundary - s_median
-
-        below = ML_SCORE_THRESHOLD * (raw - s_median) / span
-        above = ML_SCORE_THRESHOLD + (1.0 - ML_SCORE_THRESHOLD) * (
-            raw - s_boundary
-        ) / span
-        scores = np.where(raw <= s_boundary, below, above)
-        return [round(float(s), 3) for s in np.clip(scores, 0.0, 1.0)]
+        
+        # k scales the curve based on the training variance (span)
+        k = 5.0 / (span if span > 0 else 1e-6)
+        
+        # x is the raw score shifted by the boundary
+        x = raw - s_boundary
+        
+        # Logistic sigmoid function: P(anomaly) = 1 / (1 + exp(-k * x))
+        scores = 1.0 / (1.0 + np.exp(-k * x))
+        
+        return [round(float(s), 3) for s in scores]
 
     @staticmethod
     def is_anomalous(score: float) -> bool:

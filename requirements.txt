@@ -1,7 +1,22 @@
-fastapi>=0.110
-uvicorn[standard]>=0.27
-sqlalchemy>=2.0
-scikit-learn>=1.3
-numpy>=1.24
-requests>=2.31
-joblib>=1.3
+# Python dependencies.  Install with:  pip install -r requirements.txt
+#
+# NOTE: Chart.js is NOT listed here and does not need installing. It is a
+# JavaScript library, not a Python package, and a copy already ships with this
+# project at app/static/chart.umd.min.js. The dashboard loads it from the local
+# server, so the charts work with no internet connection.
+
+# --- web API ---
+fastapi>=0.110          # ingestion API + dashboard endpoints
+uvicorn[standard]>=0.27 # ASGI server that runs the app
+pydantic>=2.0           # request/response validation (app/schemas.py)
+
+# --- database ---
+sqlalchemy>=2.0         # ORM over SQLite (SQLite itself is built into Python)
+
+# --- detection ---
+scikit-learn>=1.3       # IsolationForest anomaly model
+numpy>=1.24             # feature vectors and score calibration
+joblib>=1.3             # saves/loads the trained model to data/model.pkl
+
+# --- log generators ---
+requests>=2.31          # logs/*.py post events to the API

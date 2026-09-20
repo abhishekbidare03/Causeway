@@ -8,6 +8,10 @@ unsupervised IsolationForest anomaly model — with results on a live dashboard.
 Everything runs locally. No Docker, no cloud services, no database server, no
 build step.
 
+> **Presenting this project?** See **[EXPLAIN.md](EXPLAIN.md)** — a plain-language
+> walkthrough and a step-by-step demo script, including what to say at each stage
+> and the questions a reviewer is likely to ask.
+
 ```
 log generators  ->  POST /logs  ->  SQLite  ->  feature engine (every 5s)
                                                      |
@@ -25,13 +29,46 @@ log generators  ->  POST /logs  ->  SQLite  ->  feature engine (every 5s)
 
 ## 1. One-time setup
 
+**Prerequisite:** Python 3.10 or newer (developed and tested on 3.12). Nothing
+else — no Node.js, no npm, no database server, no Docker.
+
 ```bash
 cd D:\CSE\major_project
 pip install -r requirements.txt
 ```
 
-That's it — the SQLite database and the trained model file are created
-automatically on first run, inside `data/`.
+That's the entire install. The SQLite database and the trained model file are
+created automatically on first run, inside `data/`.
+
+### What gets installed, and what doesn't
+
+`requirements.txt` installs seven direct packages: **fastapi**, **uvicorn**,
+**pydantic**, **sqlalchemy**, **scikit-learn**, **numpy**, **joblib** and
+**requests** (pip pulls in their own dependencies automatically).
+
+Two things people expect to install here but **do not need to**:
+
+- **Chart.js** — this is a JavaScript library, not a Python package, so it can
+  never appear in `requirements.txt`. A copy already ships with the project at
+  `app/static/chart.umd.min.js` (205 KB) and the dashboard loads it from the
+  local server. Nothing to install, and the charts work with **no internet
+  connection**.
+- **SQLite** — built into Python's standard library. There is no database
+  server to install, configure, or start.
+
+> Verified: installing this file into an empty virtual environment and running
+> the full pipeline from it works end to end, with no additional packages.
+
+### Optional: use a virtual environment
+
+Recommended if your friend has other Python projects, so versions can't clash:
+
+```bash
+python -m venv .venv
+.venv\Scripts\activate          # Windows
+# source .venv/bin/activate     # macOS / Linux
+pip install -r requirements.txt
+```
 
 ---
 

@@ -37,6 +37,21 @@ class EventOut(BaseModel):
     ml_flag: bool
     req_count: int
     fail_rate: float
+    incident_id: Optional[int]
+
+    class Config:
+        from_attributes = True
+
+
+class IncidentOut(BaseModel):
+    id: int
+    start_ts: datetime
+    end_ts: datetime
+    patient_zero: str
+    blast_radius: int
+    kill_chain: List[str]
+    
+    events: List[EventOut] = []
 
     class Config:
         from_attributes = True
